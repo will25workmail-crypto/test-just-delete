@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Book Appointment</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+</head>
+<body class="bg-white min-h-screen">
+<div class="max-w-7xl mx-auto mt-8 px-6">
+  <div class="bg-gradient-to-r from-green-500 to-green-600 text-white text-center py-8 rounded-t-3xl">
+    <h1 class="text-5xl font-bold">Select a date and time</h1>
+  </div>
+  <div class="bg-white rounded-b-3xl shadow-2xl p-8">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <!-- Calendar - Left side -->
+      <div class="lg:col-span-1 flex justify-center lg:justify-start">
+        <div id="calendar" class="w-full max-w-sm"></div>
+      </div>
+      <!-- Time slots + Title + Button - Middle + Right -->
+      <div class="lg:col-span-2 flex flex-col items-center">
+        <h2 id="dayTitle" class="text-4xl font-bold mb-10 text-gray-800">Select a date first</h2>
+        <div id="timeslots" class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 w-full"></div>
+        <button id="bookBtn" class="mt-12 w-full max-w-md bg-green-500 hover:bg-green-600 text-white py-8 rounded-3xl text-3xl font-bold opacity-50 cursor-not-allowed" disabled>
+          Book Selected Time
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BOOKING MODAL -->
+<div id="bookingModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+  <div class="bg-white rounded-3xl p-10 w-full max-w-md shadow-2xl">
+    <h2 class="text-3xl font-bold mb-6 text-center">Complete Your Booking</h2>
+    
+    <!-- ONLY EMAIL FIELD -->
+    <input type="email" id="emailInput" placeholder="Your email address" class="w-full p-4 mb-6 border border-gray-300 rounded-xl text-xl focus:outline-none focus:ring-4 focus:ring-green-500">
+    
+    <div class="flex gap-4">
+      <button onclick="closeBookingModal()" class="flex-1 bg-gray-400 hover:bg-gray-500 text-white py-4 rounded-xl text-xl font-bold">Cancel</button>
+      <button id="confirmBookBtn" onclick="confirmBooking()" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl text-xl font-bold opacity-50 cursor-not-allowed" disabled>
+        Confirm Booking
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRMATION MODAL -->
+<div id="confirmModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+  <div class="bg-white rounded-3xl p-12 w-full max-w-lg shadow-2xl text-center">
+    <h2 class="text-5xl font-bold text-green-600 mb-6">Booking Confirmed!</h2>
+    <p class="text-2xl mb-8">Your appointment is saved.<br>We'll send a confirmation to your email.</p>
+    <button onclick="closeConfirmModal()" class="bg-green-600 hover:bg-green-700 text-white py-6 px-12 rounded-3xl text-2xl font-bold">
+      Close
+    </button>
+  </div>
+</div>
+
+<script>
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxDPwkq3sfn6ojxfgDC0E0yWUyfydfF7mock8FjhGODAzRR2tOT9-2IDEHuOt_VPHaw/exec'
+let selectedDate = null
+let selectedTime = null
+const times = ["09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00"]
+
+function formatDate(d) {
+  const date = new Date(d)
+  const months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"]
+  return `${months[date.getMonth()]}-${date.getDate()}-${date.getFullYear()}`
+}
+
+flatpickr("#calendar", {
+  inline: true,
+  minDate: "today",
+  disable: [d => d.getDay() === 0 || d.getDay() === 6],
+  onChange: (d, str) => {
+    selectedDate = str
+    document.getElementById('dayTitle').textContent = str
+    loadBookings()
+  }
+})
+
+async function loadBookings() {
+  if (!selectedDate) return renderTimes([])
+  const res = await fetch(SCRIPT_URL + '?t=' + Date.now())
+  const data = await res.json()
+  const dateKey = formatDate(selectedDate).toLowerCase()
+  const bookedTimes = new Set()
+  data.forEach(cell => {
+    const entry = String(cell).trim().toLowerCase()
+    if (entry.includes(dateKey)) {
+      const parts = entry.split('-')
+      if (parts.length >= 4) {
+        const time = parts[3]
+        if (times.includes(time)) bookedTimes.add(time)
+      }
+    }
+  })
+  renderTimes(bookedTimes)
+}
+
+function renderTimes(bookedTimes) {
+  const c = document.getElementById('timeslots')
+  c.innerHTML = ''
+  if (!selectedDate) return
+  times.forEach(t => {
+    if (bookedTimes.has(t)) return
+    const b = document.createElement('button')
+    b.textContent = t
+    b.className = 'flex items-center justify-center p-8 bg-green-600 hover:bg-green-700 text-white rounded-3xl text-2xl font-bold transition outline-none shadow-lg'
+    if (t === selectedTime) {
+      b.classList.add('outline', 'outline-8', 'outline-black')
+    }
+    b.onclick = () => {
+      document.querySelectorAll('#timeslots button').forEach(x => x.classList.remove('outline', 'outline-8', 'outline-black'))
+      b.classList.add('outline', 'outline-8', 'outline-black')
+      selectedTime = t
+      document.getElementById('bookBtn').disabled = false
+      document.getElementById('bookBtn').classList.remove('opacity-50','cursor-not-allowed')
+    }
+    c.appendChild(b)
+  })
+}
+
+function openBookingModal() {
+  document.getElementById('bookingModal').classList.remove('hidden')
+  document.getElementById('bookingModal').classList.add('flex')
+  document.getElementById('emailInput').focus()
+}
+
+function closeBookingModal() {
+  document.getElementById('bookingModal').classList.add('hidden')
+  document.getElementById('bookingModal').classList.remove('flex')
+  document.getElementById('emailInput').value = ''
+}
+
+function closeConfirmModal() {
+  document.getElementById('confirmModal').classList.add('hidden')
+  document.getElementById('confirmModal').classList.remove('flex')
+}
+
+// Validation - only email required
+document.getElementById('emailInput').addEventListener('input', validateForm)
+
+function validateForm() {
+  const email = document.getElementById('emailInput').value.trim()
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  const confirmBtn = document.getElementById('confirmBookBtn')
+
+  if (isValidEmail) {
+    confirmBtn.disabled = false
+    confirmBtn.classList.remove('opacity-50', 'cursor-not-allowed')
+  } else {
+    confirmBtn.disabled = true
+    confirmBtn.classList.add('opacity-50', 'cursor-not-allowed')
+  }
+}
+
+async function confirmBooking() {
+  const email = document.getElementById('emailInput').value.trim()
+  // Store just date-time-email (no name)
+  const entry = `${formatDate(selectedDate)}-${selectedTime}-${email.toLowerCase()}`
+  
+  await fetch(`${SCRIPT_URL}?entry=${entry}`, {method: 'POST'})
+ 
+  closeBookingModal()
+  document.getElementById('confirmModal').classList.remove('hidden')
+  document.getElementById('confirmModal').classList.add('flex')
+  selectedTime = null
+  loadBookings()
+}
+
+document.getElementById('bookBtn').onclick = openBookingModal
+renderTimes(new Set())
+setInterval(loadBookings, 2000)
+</script>
+</body>
+</html>
